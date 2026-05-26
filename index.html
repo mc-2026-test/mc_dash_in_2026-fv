@@ -66,7 +66,8 @@ const CM={'Fecha':'fecha','mes':'mes','Mes_Nom':'mesNom','Lote':'lote','Producto
 function xdate(v){
  if(!v)return'';
  if(v instanceof Date)return v.toISOString().slice(0,10);
- if(typeof v==='number'){var d=XLSX.SSF.parse_date_code(v);if(d)return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');}
+ // Only Excel serial dates are treated as dates. Plain years like 2025 must NOT become 1905 dates.
+ if(typeof v==='number'&&v>25000){var d=XLSX.SSF.parse_date_code(v);if(d)return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');}
  var str=String(v).trim();
  if(/^\d{4}-\d{2}-\d{2}/.test(str))return str.slice(0,10);
  var m=str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
@@ -112,21 +113,17 @@ function parseConsumoWorkbook(wb,replace){
  var found=false;if(replace){ENV=[];ENVD=[];ENVF=[];}
  function cleanNum(v){var x=nnum(v);return (x<0||!isFinite(x))?0:x;}
  function validYM(ym){return /^20\d\d-\d{2}$/.test(String(ym||''))&&parseInt(String(ym).slice(0,4))>=2025&&parseInt(String(ym).slice(0,4))<=2030;}
+ function yearFromSheet(sh){var m=String(sh||'').match(/20\d\d/);if(m)return parseInt(m[0]); if(/\b25\b|25$/.test(String(sh)))return 2025; if(/\b26\b|26$/.test(String(sh)))return 2026; return null;}
  function addEnv(o){
   if(!o||!validYM(o.ym))return;
   o.ym=String(o.ym).slice(0,7);o.mesNom=mesFromYM(o.ym);
   o.kgProd=cleanNum(o.kgProd);o.electricidad=cleanNum(o.electricidad);o.agua=cleanNum(o.agua);o.gas=cleanNum(o.gas);
-  o.costeElec=cleanNum(o.costeElec);o.costeAgua=cleanNum(o.costeAgua);o.costeGas=cleanNum(o.costeGas);
-  o.costeTotal=(o.costeTotal!=null&&o.costeTotal!=='')?cleanNum(o.costeTotal):((o.costeElec||0)+(o.costeAgua||0)+(o.costeGas||0));
+  o.costeElec=cleanNum(o.costeElec);o.costeAgua=cleanNum(o.costeAgua);o.costeGas=cleanNum(o.costeGas);o.frioKwh=cleanNum(o.frioKwh);o.frioCoste=cleanNum(o.frioCoste);
+  o.costeTotal=cleanNum(o.costeTotal||((o.costeElec||0)+(o.costeAgua||0)+(o.costeGas||0)+(o.frioCoste||0)));
   var kg=o.kgProd||0;
-  o.electricidadKg=kg?o.electricidad/kg:0;
-  o.aguaKg=kg?o.agua/kg:0;
-  o.gasKg=kg?o.gas/kg:0;
-  o.costeElecKg=kg?o.costeElec/kg:0;
-  o.costeAguaKg=kg?o.costeAgua/kg:0;
-  o.costeGasKg=kg?o.costeGas/kg:0;
-  o.costeTotalKg=kg?o.costeTotal/kg:0;
-  if(o.electricidad||o.agua||o.gas||o.costeTotal||o.kgProd){ENV.push(o);found=true;}
+  o.electricidadKg=kg?o.electricidad/kg:0;o.aguaKg=kg?o.agua/kg:0;o.gasKg=kg?o.gas/kg:0;o.frioKg=kg?o.frioKwh/kg:0;
+  o.costeElecKg=kg?o.costeElec/kg:0;o.costeAguaKg=kg?o.costeAgua/kg:0;o.costeGasKg=kg?o.costeGas/kg:0;o.costeFrioKg=kg?o.frioCoste/kg:0;o.costeTotalKg=kg?o.costeTotal/kg:0;
+  if(o.electricidad||o.agua||o.gas||o.frioKwh||o.costeTotal||o.kgProd){ENV.push(o);found=true;}
  }
  function addDaily(o){
   if(!o||!o.fecha||!/^\d{4}-\d{2}-\d{2}$/.test(o.fecha))return;
@@ -138,60 +135,64 @@ function parseConsumoWorkbook(wb,replace){
  function addFrio(o){
   if(!o||!validYM(o.ym))return;
   o.ym=String(o.ym).slice(0,7);o.mesNom=mesFromYM(o.ym);
-  o.frioKwh=cleanNum(o.frioKwh||(cleanNum(o.frioMwh)*1000));o.frioCoste=cleanNum(o.frioCoste);o.frioPrecioMwh=cleanNum(o.frioPrecioMwh);
+  o.frioKwh=cleanNum(o.frioKwh||cleanNum(o.frioMwh)*1000);o.frioCoste=cleanNum(o.frioCoste);o.frioPrecioMwh=cleanNum(o.frioPrecioMwh);
   if(o.frioKwh||o.frioCoste){ENVF.push(o);found=true;}
  }
- function yearFromSheet(sh,rr){
-  var m=String(sh||'').match(/20\d\d/);if(m)return parseInt(m[0]);
-  for(var r=0;r<Math.min(5,rr.length);r++){for(var c=0;c<Math.min(5,(rr[r]||[]).length);c++){var v=rr[r][c];if(typeof v==='number'&&v>=2025&&v<=2030)return v;}}
-  return null;
- }
- function monthColsFromRow(row,year){
-  var out=[];if(!row||!year)return out;
-  for(var c=0;c<row.length;c++){
-   var dt=xdate(row[c]);
-   if(/^\d{4}-\d{2}-\d{2}$/.test(dt)&&dt.slice(0,4)===String(year))out.push({c:c,ym:dt.slice(0,7)});
-  }
-  return out;
- }
- function parseMensual628(sh,rr){
-  var ns=normTxt(sh),title=normTxt((rr[0]||[])[0]);
-  if(title.indexOf('consumos por meses')<0 && !/^628-20\d\d$/.test(ns) && !/^20\d\d$/.test(ns))return false;
-  var year=yearFromSheet(sh,rr);if(!year||year<2025||year>2030)return false;
-  var monthRow=-1,monthCols=[];
-  for(var r=0;r<Math.min(8,rr.length);r++){
-   var cols=monthColsFromRow(rr[r]||[],year);
-   if(cols.length>=1){monthRow=r;monthCols=cols;break;}
-  }
-  if(!monthCols.length)return false;
-  function rowTxt(i){return normTxt((rr[i]||[])[0])+'|'+normTxt((rr[i]||[])[1]);}
-  function findSection(txt){for(var i=0;i<rr.length;i++){if(normTxt((rr[i]||[])[0]).indexOf(txt)>=0)return i;}return -1;}
-  function findRow(start,end,txt,unit){
-   start=start<0?0:start;end=(end<0||end==null)?rr.length:end;
-   for(var i=start;i<end;i++){
-    var a=normTxt((rr[i]||[])[0]),b=normTxt((rr[i]||[])[1]),both=a+'|'+b;
-    if(both.indexOf(txt)>=0 && (!unit||both.indexOf(unit)>=0))return rr[i]||[];
+ function getMonthCols(rr,year){
+  var cols=[];
+  for(var r=0;r<Math.min(6,rr.length);r++){
+   var row=rr[r]||[];
+   for(var c=0;c<row.length;c++){
+    var dt=xdate(row[c]);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(dt)&&dt.slice(0,4)===String(year)){
+     var ym=dt.slice(0,7);
+     if(!cols.some(function(x){return x.c===c||x.ym===ym;}))cols.push({c:c,ym:ym});
+    }
    }
-   return [];
+   if(cols.length>=1)break;
   }
-  var gasS=findSection('consumos gas'),aguaS=findSection('consumos agua'),elecS=findSection('consumos electricidad'),frioS=findSection('consumos frio');
-  var kgRow=findRow(0,gasS,'kg prod');
-  var gasKwh=findRow(gasS,aguaS,'kwh'),gasCost=findRow(gasS,aguaS,'gasto'),gasCostKg=findRow(gasS,aguaS,'coste x kg');
-  var aguaM3=findRow(aguaS,elecS,'m3'),aguaCost=findRow(aguaS,elecS,'gasto'),aguaCostKg=findRow(aguaS,elecS,'coste x kg');
-  var elecKwh=findRow(elecS,frioS,'kwh'),elecCost=findRow(elecS,frioS,'gasto'),elecCostKg=findRow(elecS,frioS,'coste x kg');
-  var totalCostKg=findRow(elecS,frioS,'coste x kg','€');
-  var frioKwh=findRow(frioS,rr.length,'kwh'),frioCost=findRow(frioS,rr.length,'gasto');
+  cols.sort(function(a,b){return a.ym.localeCompare(b.ym)});
+  return cols;
+ }
+ function findRow(rr, label, start){
+  start=start||0; var lab=normTxt(label);
+  for(var i=start;i<rr.length;i++){
+   var v=normTxt((rr[i]||[])[0]);
+   if(v===lab || v.indexOf(lab)>=0)return i;
+  }
+  return -1;
+ }
+ function parseMensual(sh,rr){
+  var ns=normTxt(sh),year=yearFromSheet(sh);
+  var title=normTxt((rr[0]||[])[0]);
+  if(!year||year<2025||year>2030)return false;
+  if(ns!=='2025'&&ns!=='2026'&&ns.indexOf('628')<0&&title.indexOf('consumos por meses')<0)return false;
+  var cols=getMonthCols(rr,year);if(!cols.length)return false;
+  var rKg=findRow(rr,'kg prod',0);
+  var rGasBlock=findRow(rr,'consumos gas natural',0), rAguaBlock=findRow(rr,'consumos agua',0), rElecBlock=findRow(rr,'consumos electricidad',0), rFrioBlock=findRow(rr,'consumos frio',0);
+  var rGasK=findRow(rr,'kwh',Math.max(0,rGasBlock));
+  var rGasC=findRow(rr,'gasto',Math.max(0,rGasBlock));
+  var rAguaM=findRow(rr,'m3',Math.max(0,rAguaBlock));
+  var rAguaC=findRow(rr,'gasto',Math.max(0,rAguaBlock));
+  var rElecK=findRow(rr,'kwh',Math.max(0,rElecBlock));
+  var rElecC=findRow(rr,'gasto',Math.max(0,rElecBlock));
+  var rFrioK=rFrioBlock>=0?findRow(rr,'kwh',rFrioBlock):-1;
+  var rFrioC=rFrioBlock>=0?findRow(rr,'gasto',rFrioBlock):-1;
+  // Fallback seguro para la matriz actual consumo_628.xlsx: filas Excel 5, 9/10, 19/20, 28/29, 43/44.
+  if(rKg<0)rKg=4; if(rGasK<0)rGasK=8; if(rGasC<0)rGasC=9; if(rAguaM<0)rAguaM=18; if(rAguaC<0)rAguaC=19; if(rElecK<0)rElecK=27; if(rElecC<0)rElecC=28; if(rFrioK<0)rFrioK=42; if(rFrioC<0)rFrioC=43;
   var ok=false;
-  monthCols.forEach(function(mc0){
-   var c=mc0.c,ym=mc0.ym;
-   var kg=cleanNum(kgRow[c]),e=cleanNum(elecKwh[c]),a=cleanNum(aguaM3[c]),g=cleanNum(gasKwh[c]);
-   var ce=cleanNum(elecCost[c]),ca=cleanNum(aguaCost[c]),cg=cleanNum(gasCost[c]);
-   var fk=cleanNum(frioKwh[c]),fc=cleanNum(frioCost[c]);
-   if(kg||e||a||g||ce||ca||cg){
-    addEnv({ym:ym,kgProd:kg,electricidad:e,agua:a,gas:g,costeElec:ce,costeAgua:ca,costeGas:cg,costeTotal:ce+ca+cg,fuente:sh});
+  cols.forEach(function(mc){
+   var c=mc.c;
+   var kg=cleanNum((rr[rKg]||[])[c]);
+   var g=cleanNum((rr[rGasK]||[])[c]), cg=cleanNum((rr[rGasC]||[])[c]);
+   var a=cleanNum((rr[rAguaM]||[])[c]), ca=cleanNum((rr[rAguaC]||[])[c]);
+   var e=cleanNum((rr[rElecK]||[])[c]), ce=cleanNum((rr[rElecC]||[])[c]);
+   var fk=cleanNum((rr[rFrioK]||[])[c]), fc=cleanNum((rr[rFrioC]||[])[c]);
+   if(kg||g||a||e||fk||cg||ca||ce||fc){
+    addEnv({ym:mc.ym,kgProd:kg,gas:g,agua:a,electricidad:e,frioKwh:fk,costeGas:cg,costeAgua:ca,costeElec:ce,frioCoste:fc,costeTotal:cg+ca+ce+fc,fuente:sh});
+    if(fk||fc)addFrio({ym:mc.ym,frioKwh:fk,frioCoste:fc,fuente:sh});
     ok=true;
    }
-   if(fk||fc){addFrio({ym:ym,frioKwh:fk,frioCoste:fc,fuente:sh});ok=true;}
   });
   return ok;
  }
@@ -199,7 +200,7 @@ function parseConsumoWorkbook(wb,replace){
   var hI=-1;
   for(var i=0;i<Math.min(30,rr.length);i++){
    var row=(rr[i]||[]).map(normTxt).join('|');
-   if(row.indexOf('fecha consumo')>=0&&row.indexOf('consumo agua')>=0&&row.indexOf('kg queso')>=0){hI=i;break;}
+   if(row.indexOf('fecha consumo')>=0&&row.indexOf('consumo agua')>=0&&(row.indexOf('kg queso')>=0||row.indexOf('kg rq')>=0)){hI=i;break;}
   }
   if(hI<0)return false;
   var hd=(rr[hI]||[]).map(normTxt);
@@ -214,22 +215,17 @@ function parseConsumoWorkbook(wb,replace){
   return ok;
  }
  function parseFrio(sh,rr){
-  var ns=normTxt(sh); if(ns.indexOf('frio')<0)return false;
-  var ok=false,year=(ns.indexOf('26')>=0?2026:(ns.indexOf('25')>=0?2025:null));
-  for(var r=0;r<rr.length;r++){
-   var row=(rr[r]||[]),first=normTxt(row[0]);
-   if(first.indexOf('gasto real frio')>=0||first.indexOf('frio')>=0){
-    var months=row,cons=rr[r+1]||[],precio=rr[r+2]||[],gasto=rr[r+10]||[];
-    if(!year)year=yearFromSheet(sh,rr);
-    for(var c=1;c<months.length;c++){
-     var dt=xdate(months[c]);
-     if(!/^\d{4}-\d{2}-\d{2}$/.test(dt)||dt.slice(0,4)!==String(year))continue;
-     var kwh=cleanNum(cons[c])*1000,coste=cleanNum(gasto[c]),pr=cleanNum(precio[c]);
-     if(kwh||coste){addFrio({ym:dt.slice(0,7),frioKwh:kwh,frioCoste:coste,frioPrecioMwh:pr,fuente:sh});ok=true;}
-    }
-    break;
-   }
-  }
+  var ns=normTxt(sh);if(ns.indexOf('frio')<0)return false;
+  var year=yearFromSheet(sh); if(!year)return false;
+  var cols=getMonthCols(rr,year),ok=false; if(!cols.length)return false;
+  var rMwh=findRow(rr,'consumo mwh',14); if(rMwh<0)rMwh=findRow(rr,'consumo mwh',0);
+  var rFactura=findRow(rr,'factura',0), rGasto=findRow(rr,'gasto',rMwh+1);
+  cols.forEach(function(mc){
+   var c=mc.c;
+   var mwh=cleanNum((rr[rMwh]||[])[c]);
+   var coste=cleanNum((rr[rGasto]||[])[c])||cleanNum((rr[rFactura]||[])[c]);
+   if(mwh||coste){addFrio({ym:mc.ym,frioKwh:mwh*1000,frioCoste:coste,fuente:sh});ok=true;}
+  });
   return ok;
  }
  wb.SheetNames.forEach(function(sh){
@@ -239,26 +235,37 @@ function parseConsumoWorkbook(wb,replace){
   var rr=XLSX.utils.sheet_to_json(wb.Sheets[sh],{header:1,defval:null,raw:true});
   if(ns.indexOf('diario')>=0){parseDiario(sh,rr);return;}
   if(ns.indexOf('frio')>=0){parseFrio(sh,rr);return;}
-  if(ns.indexOf('628')>=0||/^20\d\d$/.test(ns)||ns.indexOf('consumo')>=0){parseMensual628(sh,rr);}
+  parseMensual(sh,rr);
  });
- // Deduplicación mensual: si se carga dos veces el mismo mes desde hojas equivalentes, se suman sólo conceptos no duplicados por fuente distinta.
+ // Fallback: agregación diaria para completar consumos si el mensual no trae algún concepto.
+ var dailyByYM={};
+ ENVD.forEach(function(d){
+  if(!dailyByYM[d.ym])dailyByYM[d.ym]={ym:d.ym,mesNom:mesFromYM(d.ym),kgProd:0,agua:0,gas:0,electricidad:0};
+  dailyByYM[d.ym].kgProd+=(d.kgQueso||0)+(d.kgRQ||0);dailyByYM[d.ym].agua+=d.agua||0;dailyByYM[d.ym].gas+=d.gas||0;dailyByYM[d.ym].electricidad+=d.electricidad||0;
+ });
+ Object.keys(dailyByYM).forEach(function(ym){
+  var ex=ENV.find(function(x){return x.ym===ym});var d=dailyByYM[ym];
+  if(!ex){addEnv({ym:ym,kgProd:d.kgProd,agua:d.agua,gas:d.gas,electricidad:d.electricidad,fuente:'Diario'});}
+  else{if(!ex.kgProd)ex.kgProd=d.kgProd;if(!ex.agua)ex.agua=d.agua;if(!ex.gas)ex.gas=d.gas;if(!ex.electricidad)ex.electricidad=d.electricidad;}
+ });
+ // Deduplicación: un registro final por mes. Prioridad: hoja mensual 2025/2026 > 628 > diario.
  var byYM={};
  ENV.forEach(function(x){
-  if(!byYM[x.ym]){byYM[x.ym]=Object.assign({},x);return;}
-  var y=byYM[x.ym];
-  ['kgProd','electricidad','agua','gas','costeElec','costeAgua','costeGas','costeTotal'].forEach(function(k){y[k]=(y[k]||0)+(x[k]||0);});
+  var pr=(x.fuente==='2025'||x.fuente==='2026')?3:(String(x.fuente||'').indexOf('628')>=0?2:1);
+  var score=pr*1e12+(x.costeTotal||0)+(x.electricidad||0)+(x.gas||0)+(x.agua||0)+(x.frioKwh||0);
+  if(!byYM[x.ym]||score>byYM[x.ym]._score){x._score=score;byYM[x.ym]=Object.assign({},x);}
  });
- ENV=Object.keys(byYM).sort().map(function(k){var x=byYM[k],kg=x.kgProd||0;x.mesNom=mesFromYM(k);x.electricidadKg=kg?x.electricidad/kg:0;x.aguaKg=kg?x.agua/kg:0;x.gasKg=kg?x.gas/kg:0;x.costeTotalKg=kg?x.costeTotal/kg:0;x.costeElecKg=kg?x.costeElec/kg:0;x.costeAguaKg=kg?x.costeAgua/kg:0;x.costeGasKg=kg?x.costeGas/kg:0;return x;});
+ ENVF.forEach(function(fx){
+  if(!byYM[fx.ym])byYM[fx.ym]={ym:fx.ym,mesNom:mesFromYM(fx.ym),kgProd:(dailyByYM[fx.ym]||{}).kgProd||0,electricidad:0,agua:0,gas:0,costeElec:0,costeAgua:0,costeGas:0,costeTotal:0};
+  if((fx.frioKwh||0)>(byYM[fx.ym].frioKwh||0))byYM[fx.ym].frioKwh=fx.frioKwh||0;
+  if((fx.frioCoste||0)>(byYM[fx.ym].frioCoste||0))byYM[fx.ym].frioCoste=fx.frioCoste||0;
+ });
+ ENV=Object.keys(byYM).sort().map(function(k){var x=byYM[k],kg=x.kgProd||0;x.mesNom=mesFromYM(k);x.costeTotal=(x.costeElec||0)+(x.costeAgua||0)+(x.costeGas||0)+(x.frioCoste||0);x.electricidadKg=kg?x.electricidad/kg:0;x.aguaKg=kg?x.agua/kg:0;x.gasKg=kg?x.gas/kg:0;x.frioKg=kg?x.frioKwh/kg:0;x.costeTotalKg=kg?x.costeTotal/kg:0;x.costeElecKg=kg?x.costeElec/kg:0;x.costeAguaKg=kg?x.costeAgua/kg:0;x.costeGasKg=kg?x.costeGas/kg:0;x.costeFrioKg=kg?x.frioCoste/kg:0;delete x._score;return x;});
  var byFY={};
- ENVF.forEach(function(x){
-  if(!byFY[x.ym]){byFY[x.ym]=Object.assign({},x);return;}
-  // El mismo frío puede venir de la hoja mensual y de la hoja de cierre; usamos el mayor valor para evitar doble conteo.
-  byFY[x.ym].frioKwh=Math.max(byFY[x.ym].frioKwh||0,x.frioKwh||0);
-  byFY[x.ym].frioCoste=Math.max(byFY[x.ym].frioCoste||0,x.frioCoste||0);
- });
+ ENVF.forEach(function(x){if(!byFY[x.ym])byFY[x.ym]=Object.assign({},x);else{byFY[x.ym].frioKwh=Math.max(byFY[x.ym].frioKwh||0,x.frioKwh||0);byFY[x.ym].frioCoste=Math.max(byFY[x.ym].frioCoste||0,x.frioCoste||0);}});
  ENVF=Object.keys(byFY).sort().map(function(k){var x=byFY[k];x.mesNom=mesFromYM(k);return x;});
- console.log('Consumo 628 parseado',{mensual:ENV.length,diario:ENVD.length,frio:ENVF.length});
- return found;
+ console.log('Consumo 628 parseado',{mensual:ENV.length,diario:ENVD.length,frio:ENVF.length,primerMensual:ENV[0],hojas:wb.SheetNames});
+ return found||ENV.length>0||ENVD.length>0||ENVF.length>0;
 }
 function parseExcel(wb){
 parseRequeson(wb);
@@ -602,7 +609,7 @@ async function cargarExcelNetlify() {
     var buffer = await response.arrayBuffer();
     console.log('3. Buffer size:', buffer.byteLength, 'bytes');
     if (buffer.byteLength < 1000) throw new Error('Archivo muy pequeño o vacío');
-    var wb = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+    var wb = XLSX.read(new Uint8Array(buffer), { type: 'array', cellDates:true });
     console.log('4. Hojas encontradas:', wb.SheetNames);
     var ok = parseExcel(wb);
     console.log('5. parseExcel resultado:', ok, '- Lotes:', D.length);
@@ -625,7 +632,7 @@ async function cargarConsumo628(){
       if(!response.ok)continue;
       var buffer=await response.arrayBuffer();
       if(buffer.byteLength<1000)continue;
-      var wb=XLSX.read(new Uint8Array(buffer),{type:'array'});
+      var wb=XLSX.read(new Uint8Array(buffer),{type:'array',cellDates:true});
       if(parseConsumoWorkbook(wb,true)){console.log('Consumo 628 cargado:',files[i],ENV.length);render();return;}
     }catch(e){}
   }
