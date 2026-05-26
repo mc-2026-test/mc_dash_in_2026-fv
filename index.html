@@ -67,8 +67,16 @@ function xdate(v){
  if(!v)return'';
  if(v instanceof Date)return v.toISOString().slice(0,10);
  if(typeof v==='number'){var d=XLSX.SSF.parse_date_code(v);if(d)return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');}
- var str=String(v);
+ var str=String(v).trim();
  if(/^\d{4}-\d{2}-\d{2}/.test(str))return str.slice(0,10);
+ var m=str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+ if(m){
+  var a=parseInt(m[1]),b=parseInt(m[2]),y=parseInt(m[3]); if(y<100)y+=2000;
+  // Prefer Spanish/Excel display dd/mm/yyyy; if first number >12 it is definitely day.
+  var day=a,mon=b;
+  if(a<=12&&b>12){mon=a;day=b;}
+  if(y>=1900&&mon>=1&&mon<=12&&day>=1&&day<=31)return y+'-'+String(mon).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+ }
  return str;
 }
 function ymFromDateStr(dt){return dt&&dt.length>=7?dt.slice(0,7):''}
@@ -228,7 +236,7 @@ function parseConsumoWorkbook(wb,replace){
   var ns=normTxt(sh),yy=(ns.match(/20\d\d/)||[])[0];
   if(yy&&(parseInt(yy)<2025||parseInt(yy)>2030))return;
   if(ns==='dqo'||ns.indexOf('reques')>=0||ns.indexOf('base')>=0||ns.indexOf('target')>=0||ns.indexOf('precio')>=0||ns.indexOf('pivot')>=0||ns.indexOf('dim')>=0)return;
-  var rr=XLSX.utils.sheet_to_json(wb.Sheets[sh],{header:1,defval:null,raw:false});
+  var rr=XLSX.utils.sheet_to_json(wb.Sheets[sh],{header:1,defval:null,raw:true});
   if(ns.indexOf('diario')>=0){parseDiario(sh,rr);return;}
   if(ns.indexOf('frio')>=0){parseFrio(sh,rr);return;}
   if(ns.indexOf('628')>=0||/^20\d\d$/.test(ns)||ns.indexOf('consumo')>=0){parseMensual628(sh,rr);}
