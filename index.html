@@ -222,6 +222,35 @@ function parseConsumoWorkbook(wb,replace){
  ENV=Object.keys(byYM).sort().map(function(k){var x=byYM[k],kg=x.kgProd||0;x.electricidadKg=kg?x.electricidad/kg:0;x.aguaKg=kg?x.agua/kg:0;x.gasKg=kg?x.gas/kg:0;x.costeTotalKg=kg?x.costeTotal/kg:0;x.costeElecKg=kg?x.costeElec/kg:0;x.costeAguaKg=kg?x.costeAgua/kg:0;x.costeGasKg=kg?x.costeGas/kg:0;return x;});
  return found;
 }
+function parseExcel(wb){
+parseRequeson(wb);
+parseDQO(wb);
+parseConsumoWorkbook(wb,true);
+var dfS=wb.SheetNames.find(function(s){return s.toLowerCase().indexOf('dim_fecha')>=0});
+if(dfS){var raw=XLSX.utils.sheet_to_json(wb.Sheets[dfS]);DW={};SM={};raw.forEach(function(r){if(r.Fecha&&r.AñoSemana){var d=r.Fecha;if(typeof d==='number'){var x=XLSX.SSF.parse_date_code(d);d=x.y+'-'+String(x.m).padStart(2,'0')+'-'+String(x.d).padStart(2,'0');}else if(d instanceof Date)d=d.toISOString().slice(0,10);DW[d]=r.AñoSemana;}if(r.AñoSemana&&r.AñoMes){SM[r.AñoSemana]=String(r.AñoMes);}});}
+var brS=wb.SheetNames.find(function(s){return s.toLowerCase().indexOf('base_rend')>=0});
+if(!brS){toast('No Base_Rendimientos','err');return false;}
+var brR=XLSX.utils.sheet_to_json(wb.Sheets[brS],{header:1,defval:null});var hI=-1;
+for(var i=0;i<Math.min(10,brR.length);i++){if(brR[i]&&brR[i].some(function(c){return c==='Fecha'})){hI=i;break;}}
+if(hI<0){toast('No cabecera','err');return false;}
+var hd=brR[hI];D=[];
+for(var i=hI+1;i<brR.length;i++){var row=brR[i];if(!row||!row[0])continue;var o={};hd.forEach(function(h,ci){var k=CM[h];if(k&&row[ci]!=null){var v=row[ci];if(k==='fecha'){if(typeof v==='number'){var dd=XLSX.SSF.parse_date_code(v);v=dd.y+'-'+String(dd.m).padStart(2,'0')+'-'+String(dd.d).padStart(2,'0');}else if(v instanceof Date)v=v.toISOString().slice(0,10);}if(PF.indexOf(k)>=0&&typeof v==='number'&&Math.abs(v)<1.5)v=+(v*100).toFixed(2);o[k]=v;}});
+if(o.fecha&&o.producto&&o.litrosLeche&&o.producto!=="PROMEDIO"){o.producto=o.producto.toString().trim().replace(/\s+/g,'_');if(!o.mesNom){var mn=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];var mm=parseInt(o.fecha.split('-')[1]);o.mesNom=mn[mm]||'';o.mes=mm;}if(o.fecha){o.anyo=String(o.fecha).slice(0,4);o.ym=String(o.fecha).slice(0,7);}D.push(o);}}
+if(!D.length){toast('Sin datos','err');return false;}
+var tS=wb.SheetNames.find(function(s){return s.toLowerCase()==='targets'});
+if(tS){var tR=XLSX.utils.sheet_to_json(wb.Sheets[tS],{header:1,defval:null});TG={};CI={};var th=-1;for(var ti=0;ti<tR.length;ti++){if(tR[ti]&&tR[ti][0]==='Producto'){th=ti;break;}}if(th>=0){var hh=tR[th];var ix=function(n){return hh.indexOf(n)};var iProd=ix('Producto'),iYear=ix('Año'),iCI=ix('Coste Ing_emb'),iTG=ix('Rend_Ntarget');for(var ti=th+1;ti<tR.length;ti++){var r=tR[ti];if(!r||!r[iProd]||r[iProd]==='Tabla_Target')continue;var p=r[iProd].toString().trim().replace(/\s+/g,'_');var y=r[iYear]?String(r[iYear]):'';if(iTG>=0&&typeof r[iTG]==='number'){TG[p]=+r[iTG].toFixed(3);if(y)TG[p+'__'+y]=+r[iTG].toFixed(3);}if(iCI>=0&&typeof r[iCI]==='number'){CI[p]=+r[iCI];if(y)CI[p+'__'+y]=+r[iCI];}}}}
+var pvS=wb.SheetNames.find(function(s){return s.toLowerCase().indexOf('precio')>=0});
+if(pvS){var pvR=XLSX.utils.sheet_to_json(wb.Sheets[pvS],{header:1,defval:null});SL=[];AC=[];NC=[];OT=[];SP=[];RQV=[];var sS=-1;
+for(var i=0;i<pvR.length;i++){var r=pvR[i];if(!r)continue;
+if(r[0]==='Fecha'&&r[1]==='Producto'){sS=i;continue;}
+if(sS>0&&i>sS){
+if(r[44]&&r[45]&&normTxt(r[45]).indexOf('reques')>=0){var sem=String(r[44]);var ym=weekYM(sem);if(nnum(r[46])||nnum(r[48])){RQV.push({s:sem,ym:ym,p:'REQUESON',kgTio:nnum(r[46]),pvTio:nnum(r[47]),kgReg:nnum(r[48]),pvReg:nnum(r[49])});}}
+if(r[0]&&typeof r[0]==='string'&&/^\d{4}-S\d{2}$/.test(r[0])&&r[1]&&r[3]&&typeof r[3]==='number')SL.push({s:r[0],ym:weekYM(r[0]),p:r[1].toString().trim().replace(/\s+/g,'_'),kg:r[2]||0,pv:r[3]});
+if(r[6]&&r[9]&&typeof r[9]==='number'){var mn2=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];AC.push({y:+r[6],ym:String(r[7]||''),m:r[8],g:r[9],eb:r[10]||0,ebp:r[11]||0});}
+if(r[17]&&r[18]&&typeof r[18]==='number'&&r[18]>0)NC.push({sem:r[17],ym:weekYM(r[17]),kg:r[18],prod:r[19]?r[19].toString().trim().replace(/\s+/g,'_'):'',estado:r[20]||''});
+if(r[24]&&r[27]&&typeof r[27]==='number')OT.push({y:+r[24],ym:String(r[25]||''),m:r[26],v:r[27]});
+if(r[31]&&(r[34]||r[35]||r[36]||r[37]))SP.push({y:+r[31],ym:String(r[32]||''),m:r[33],nataSueroE:r[34]||0,nataLecheE:r[35]||0,sueroE:r[36]||0,permE:r[37]||0});}}}
+toast('\u2713 '+D.length+' lotes cargados','ok');return true;}
 function handleFile(f){if(!f)return;var r=new FileReader();r.onload=function(e){try{var wb=XLSX.read(e.target.result,{type:'array',cellDates:true});if(parseExcel(wb)){sM='ALL';sP='ALL';render();}}catch(err){toast('Error: '+err.message,'err');}};r.readAsArrayBuffer(f);}
 ['dragenter','dragover'].forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();ev.stopPropagation();$('dz').classList.add('on')})});
 ['dragleave','drop'].forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();ev.stopPropagation();$('dz').classList.remove('on')})});
