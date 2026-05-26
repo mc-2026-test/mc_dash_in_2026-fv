@@ -236,9 +236,19 @@ function wavg(a,kV,kW){var tw=sum(a,kW);return tw?a.reduce(function(s,r){return 
 function f(n,d){d=d||0;return n.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d})}
 function fk(n){return Math.abs(n)>=1e6?f(n/1e6,2)+'M':Math.abs(n)>=1000?f(n/1000,0)+'k':f(n,0)}
 function fil(){return D.filter(function(r){if(r.producto==="PROMEDIO")return false;var yOk=sY==="ALL"||String(r.fecha||"").slice(0,4)===sY;var mOk=sM==="ALL"||r.mesNom===sM;var pOk=sP==="ALL"||r.producto===sP;var dOk=sDay==="ALL"||parseInt(String(r.fecha||"").slice(8,10))===parseInt(sDay);return yOk&&mOk&&pOk&&dOk})}
-function ms(){return Array.from(new Set(D.map(function(r){return r.mesNom}).concat(RQ.map(function(r){return r.mesNom})).concat(DQO.map(function(r){return r.mesNom})).concat(ENV.map(function(r){return r.mesNom})).filter(Boolean)))}
+function filterSource(){
+ if(tab==='REQUESÓN')return RQ.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom}});
+ if(tab==='MEDIO AMBIENTE'){
+  return ENV.map(function(r){return{fecha:(r.ym||'')+'-01',ym:r.ym,mesNom:r.mesNom}})
+   .concat(DQO.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom}}))
+   .concat(ENVD.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom}}))
+   .concat(ENVF.map(function(r){return{fecha:(r.ym||'')+'-01',ym:r.ym,mesNom:r.mesNom}}));
+ }
+ return D.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom,producto:r.producto}});
+}
+function ms(){return Array.from(new Set(filterSource().map(function(r){return r.mesNom}).filter(Boolean)))}
 function ps(){return Array.from(new Set(D.map(function(r){return r.producto})))}
-function ys(){var a=D.map(function(r){var f=String(r.fecha||"");return f.length>=4?f.slice(0,4):""}).concat(RQ.map(function(r){return String(r.fecha||'').slice(0,4)})).concat(DQO.map(function(r){return String(r.fecha||'').slice(0,4)})).concat(ENV.map(function(r){return String(r.ym||'').slice(0,4)}));return Array.from(new Set(a.filter(function(v){return v&&v.length===4}))).sort()}
+function ys(){var a=filterSource().map(function(r){var f=String(r.fecha||r.ym||'');return f.length>=4?f.slice(0,4):''});return Array.from(new Set(a.filter(function(v){return v&&v.length===4}))).sort()}
 function kill(){CA.forEach(function(c){c.destroy()});CA=[];}
 function mc(id,cfg){var el=$(id);if(!el)return;cfg.options=cfg.options||{};cfg.options.animation={duration:350};CA.push(new Chart(el,cfg));}
 function mesNum(m){
@@ -280,7 +290,28 @@ function filteredENV(){return ENV.filter(function(r){return ymOK(r.ym);})}
 function prodKgByYM(){var m={};D.forEach(function(r){var ym=r.ym||String(r.fecha||'').slice(0,7);if(!m[ym])m[ym]=0;m[ym]+=r.kgSecadero||r.kgBlanco||0;});return m}
 function kpi(l,v,u,bc,cls,sub){cls=cls||'';sub=sub||'';return'<div class="kpi '+cls+'" style="border-left-color:'+bc+'"><div class="kpi-l">'+l+'</div><div class="kpi-v">'+v+'<span class="u">'+u+'</span></div>'+(sub?'<div class="kpi-s">'+sub+'</div>':'')+'</div>';}
 function renderNav(){$('nav').innerHTML=TB.map(function(t){return'<button class="'+(t===tab?'on':'')+'" onclick="setTab(\''+t+'\')">'+t+'</button>'}).join("");}
-function renderFilters(){var y=ys(),m=ms(),p=ps();var h='<div class="fg"><span class="fl">A\u00f1o</span><button class="fb '+(sY==='ALL'?'on':'')+'" onclick="setYear(\'ALL\')">TODOS</button>';for(var i=0;i<y.length;i++){h+='<button class="fb '+(sY===y[i]?'on':'')+'" onclick="setYear(\''+y[i]+'\')">'+y[i]+'</button>';}h+='</div><div class="fg"><span class="fl">Mes</span><button class="fb '+(sM==='ALL'?'on':'')+'" onclick="setMes(\'ALL\')">TODOS</button>';for(var i=0;i<m.length;i++){h+='<button class="fb '+(sM===m[i]?'on':'')+'" onclick="setMes(\''+m[i]+'\')">'+m[i]+'</button>';}h+='</div>';if(sM!=='ALL'){var days=Array.from(new Set(D.filter(function(r){return r.mesNom===sM&&(sY==='ALL'||String(r.fecha||'').slice(0,4)===sY)}).map(function(r){return parseInt(String(r.fecha||'').slice(8,10))}).filter(function(v){return v>0}))).sort(function(a,b){return a-b});if(days.length>0){h+='<div class="fg"><span class="fl">D\u00eda</span><button class="fb '+(sDay==='ALL'?'on':'')+'" onclick="setDay(\'ALL\')">TODOS</button>';for(var i=0;i<days.length;i++){h+='<button class="fb '+(sDay==days[i]?'on':'')+'" onclick="setDay('+days[i]+')">'+days[i]+'</button>';}h+='</div>';}}h+='<div class="fg"><span class="fl">Producto</span><button class="fb '+(sP==='ALL'?'on':'')+'" onclick="setProd(\'ALL\')">TODOS</button>';for(var i=0;i<p.length;i++){var a=sP===p[i];h+='<button class="fb '+(a?'po':'')+'" style="'+(a?'background:'+pc(p[i])+';border-color:'+pc(p[i]):'')+'" onclick="setProd(\''+p[i]+'\')">'+pd(p[i])+'</button>';}h+='</div>';$('flts').innerHTML=h;}
+function renderFilters(){
+ var y=ys(),m=ms(),p=ps(),src=filterSource();
+ var h='<div class="fg"><span class="fl">A\u00f1o</span><button class="fb '+(sY==='ALL'?'on':'')+'" onclick="setYear(\'ALL\')">TODOS</button>';
+ for(var i=0;i<y.length;i++){h+='<button class="fb '+(sY===y[i]?'on':'')+'" onclick="setYear(\''+y[i]+'\')">'+y[i]+'</button>';}
+ h+='</div><div class="fg"><span class="fl">Mes</span><button class="fb '+(sM==='ALL'?'on':'')+'" onclick="setMes(\'ALL\')">TODOS</button>';
+ for(var i=0;i<m.length;i++){h+='<button class="fb '+(sM===m[i]?'on':'')+'" onclick="setMes(\''+m[i]+'\')">'+m[i]+'</button>';}
+ h+='</div>';
+ if(sM!=='ALL'){
+  var days=Array.from(new Set(src.filter(function(r){return r.mesNom===sM&&(sY==='ALL'||String(r.fecha||'').slice(0,4)===sY)}).map(function(r){return parseInt(String(r.fecha||'').slice(8,10))}).filter(function(v){return v>0}))).sort(function(a,b){return a-b});
+  if(days.length>0&&tab!=='MEDIO AMBIENTE'){
+   h+='<div class="fg"><span class="fl">D\u00eda</span><button class="fb '+(sDay==='ALL'?'on':'')+'" onclick="setDay(\'ALL\')">TODOS</button>';
+   for(var i=0;i<days.length;i++){h+='<button class="fb '+(sDay==days[i]?'on':'')+'" onclick="setDay('+days[i]+')">'+days[i]+'</button>';}
+   h+='</div>';
+  }
+ }
+ if(tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){
+  h+='<div class="fg"><span class="fl">Producto</span><button class="fb '+(sP==='ALL'?'on':'')+'" onclick="setProd(\'ALL\')">TODOS</button>';
+  for(var i=0;i<p.length;i++){var a=sP===p[i];h+='<button class="fb '+(a?'po':'')+'" style="'+(a?'background:'+pc(p[i])+';border-color:'+pc(p[i]):'')+'" onclick="setProd(\''+p[i]+'\')">'+pd(p[i])+'</button>';}
+  h+='</div>';
+ }else{sP='ALL';}
+ $('flts').innerHTML=h;
+}
 function renderAlerts(d){var al=[];var mA=wavg(d,'mermaTOTpct','kgBlanco');if(mA>MP)al.push({t:'\u26a0 Merma \u00d8 '+f(mA,2)+'% > Ppto '+MP+'%',c:'r'});if(!al.length)al.push({t:'\u2713 Sin alertas',c:'g'});$('alertsEl').innerHTML=al.map(function(a){return'<span class="atag '+a.c+'">'+a.t+'</span>'}).join("");}
 
 /* ======== OVERVIEW ======== */
