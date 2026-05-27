@@ -138,7 +138,19 @@ function parseConsumoWorkbook(wb,replace){
   o.frioKwh=cleanNum(o.frioKwh||cleanNum(o.frioMwh)*1000);o.frioCoste=cleanNum(o.frioCoste);o.frioPrecioMwh=cleanNum(o.frioPrecioMwh);
   if(o.frioKwh||o.frioCoste){ENVF.push(o);found=true;}
  }
- function getMonthCols(rr,year){
+ function getMonthCols(rr,year,mode){
+  // consumo_628.xlsx no es una tabla: es una matriz con meses en columnas y trimestres intercalados.
+  // Para evitar desplazamientos de mes, en las hojas mensuales se usan columnas fijas:
+  // C,D,E = ene/feb/mar; G,H,I = abr/may/jun; K,L,M = jul/ago/sep; O,P,Q = oct/nov/dic.
+  // En las hojas de frío, los meses están en B:M sin columnas trimestrales intermedias.
+  if((mode==='mensual')&&(year===2025||year===2026)){
+   var mc=[2,3,4,6,7,8,10,11,12,14,15,16];
+   return mc.map(function(c,i){return{c:c,ym:year+'-'+String(i+1).padStart(2,'0')}});
+  }
+  if((mode==='frio')&&(year===2025||year===2026)){
+   var fc=[1,2,3,4,5,6,7,8,9,10,11,12];
+   return fc.map(function(c,i){return{c:c,ym:year+'-'+String(i+1).padStart(2,'0')}});
+  }
   var cols=[];
   for(var r=0;r<Math.min(6,rr.length);r++){
    var row=rr[r]||[];
@@ -167,7 +179,7 @@ function parseConsumoWorkbook(wb,replace){
   var title=normTxt((rr[0]||[])[0]);
   if(!year||year<2025||year>2030)return false;
   if(ns!=='2025'&&ns!=='2026'&&ns.indexOf('628')<0&&title.indexOf('consumos por meses')<0)return false;
-  var cols=getMonthCols(rr,year);if(!cols.length)return false;
+  var cols=getMonthCols(rr,year,'mensual');if(!cols.length)return false;
   var rKg=findRow(rr,'kg prod',0);
   var rGasBlock=findRow(rr,'consumos gas natural',0), rAguaBlock=findRow(rr,'consumos agua',0), rElecBlock=findRow(rr,'consumos electricidad',0), rFrioBlock=findRow(rr,'consumos frio',0);
   var rGasK=findRow(rr,'kwh',Math.max(0,rGasBlock));
@@ -217,7 +229,7 @@ function parseConsumoWorkbook(wb,replace){
  function parseFrio(sh,rr){
   var ns=normTxt(sh);if(ns.indexOf('frio')<0)return false;
   var year=yearFromSheet(sh); if(!year)return false;
-  var cols=getMonthCols(rr,year),ok=false; if(!cols.length)return false;
+  var cols=getMonthCols(rr,year,'frio'),ok=false; if(!cols.length)return false;
   var rMwh=findRow(rr,'consumo mwh',14); if(rMwh<0)rMwh=findRow(rr,'consumo mwh',0);
   var rFactura=findRow(rr,'factura',0), rGasto=findRow(rr,'gasto',rMwh+1);
   cols.forEach(function(mc){
