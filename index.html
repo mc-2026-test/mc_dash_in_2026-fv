@@ -323,20 +323,40 @@ function wavg(a,kV,kW){var tw=sum(a,kW);return tw?a.reduce(function(s,r){return 
 function f(n,d){d=d||0;return n.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d})}
 function fk(n){return Math.abs(n)>=1e6?f(n/1e6,2)+'M':Math.abs(n)>=1000?f(n/1000,0)+'k':f(n,0)}
 function fil(){return D.filter(function(r){if(r.producto==="PROMEDIO")return false;var yOk=sY==="ALL"||String(r.fecha||"").slice(0,4)===sY;var mOk=sM==="ALL"||r.mesNom===sM;var pOk=sP==="ALL"||r.producto===sP;var dOk=sDay==="ALL"||parseInt(String(r.fecha||"").slice(8,10))===parseInt(sDay);return yOk&&mOk&&pOk&&dOk})}
-function filterSource(){
- if(tab==='REQUESÓN')return RQ.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom}});
+function baseSource(){
+ if(tab==='REQUESÓN')return RQ.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom,producto:''}});
  if(tab==='MEDIO AMBIENTE'){
   var minY=function(x){var y=parseInt(String(x.fecha||x.ym||'').slice(0,4));return y>=2025&&y<=2030;};
-  return ENV.filter(minY).map(function(r){return{fecha:(r.ym||'')+'-01',ym:r.ym,mesNom:r.mesNom}})
-   .concat(DQO.filter(minY).map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom}}))
-   .concat(ENVD.filter(minY).map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom}}))
-   .concat(ENVF.filter(minY).map(function(r){return{fecha:(r.ym||'')+'-01',ym:r.ym,mesNom:r.mesNom}}));
+  return ENV.filter(minY).map(function(r){return{fecha:(r.ym||'')+'-01',ym:r.ym,mesNom:r.mesNom,producto:''}})
+   .concat(DQO.filter(minY).map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom,producto:''}}))
+   .concat(ENVD.filter(minY).map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom,producto:''}}))
+   .concat(ENVF.filter(minY).map(function(r){return{fecha:(r.ym||'')+'-01',ym:r.ym,mesNom:r.mesNom,producto:''}}));
  }
  return D.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom,producto:r.producto}});
 }
-function ms(){return Array.from(new Set(filterSource().map(function(r){return r.mesNom}).filter(Boolean)))}
-function ps(){return Array.from(new Set(D.map(function(r){return r.producto})))}
-function ys(){var a=filterSource().map(function(r){var f=String(r.fecha||r.ym||'');return f.length>=4?f.slice(0,4):''});return Array.from(new Set(a.filter(function(v){var y=parseInt(v);return v&&v.length===4&&(!isNaN(y))&&(tab!=='MEDIO AMBIENTE'||(y>=2025&&y<=2030));}))).sort()}
+function sourceFiltered(ignore){
+ ignore=ignore||{};
+ return baseSource().filter(function(r){
+  var f=String(r.fecha||r.ym||''), y=f.length>=4?f.slice(0,4):'', dd=parseInt(String(r.fecha||'').slice(8,10));
+  if(!ignore.year&&sY!=='ALL'&&y!==sY)return false;
+  if(!ignore.month&&sM!=='ALL'&&r.mesNom!==sM)return false;
+  if(!ignore.product&&sP!=='ALL'&&r.producto&&r.producto!==sP)return false;
+  if(!ignore.day&&sDay!=='ALL'&&dd!==parseInt(sDay))return false;
+  return true;
+ });
+}
+function filterSource(){return sourceFiltered({});}
+function ms(){return Array.from(new Set(sourceFiltered({month:true,day:true}).map(function(r){return r.mesNom}).filter(Boolean)))}
+function ps(){return Array.from(new Set(sourceFiltered({product:true}).map(function(r){return r.producto}).filter(Boolean)))}
+function ys(){var a=sourceFiltered({year:true,month:true,day:true}).map(function(r){var f=String(r.fecha||r.ym||'');return f.length>=4?f.slice(0,4):''});return Array.from(new Set(a.filter(function(v){var y=parseInt(v);return v&&v.length===4&&(!isNaN(y))&&(tab!=='MEDIO AMBIENTE'||(y>=2025&&y<=2030));}))).sort()}
+function ds(){return Array.from(new Set(sourceFiltered({day:true}).map(function(r){return parseInt(String(r.fecha||'').slice(8,10))}).filter(function(v){return v>0}))).sort(function(a,b){return a-b})}
+function normalizeFilters(){
+ if(tab==='REQUESÓN'||tab==='MEDIO AMBIENTE'){sP='ALL';}
+ var yA=ys(); if(sY!=='ALL'&&yA.indexOf(sY)<0){sY='ALL';sM='ALL';sDay='ALL';}
+ var mA=ms(); if(sM!=='ALL'&&mA.indexOf(sM)<0){sM='ALL';sDay='ALL';}
+ if(tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){var pA=ps(); if(sP!=='ALL'&&pA.indexOf(sP)<0){sP='ALL';sDay='ALL';}}
+ var dA=ds(); if(sDay!=='ALL'&&dA.indexOf(parseInt(sDay))<0){sDay='ALL';}
+}
 function kill(){CA.forEach(function(c){c.destroy()});CA=[];}
 function mc(id,cfg){var el=$(id);if(!el)return;cfg.options=cfg.options||{};cfg.options.animation={duration:350};CA.push(new Chart(el,cfg));}
 function mesNum(m){
@@ -388,7 +408,7 @@ function renderFilters(){
  for(var i=0;i<m.length;i++){h+='<button class="fb '+(sM===m[i]?'on':'')+'" onclick="setMes(\''+m[i]+'\')">'+m[i]+'</button>';}
  h+='</div>';
  if(sM!=='ALL'){
-  var days=Array.from(new Set(src.filter(function(r){return r.mesNom===sM&&(sY==='ALL'||String(r.fecha||'').slice(0,4)===sY)}).map(function(r){return parseInt(String(r.fecha||'').slice(8,10))}).filter(function(v){return v>0}))).sort(function(a,b){return a-b});
+  var days=ds();
   if(days.length>0){
    h+='<div class="fg"><span class="fl">D\u00eda</span><button class="fb '+(sDay==='ALL'?'on':'')+'" onclick="setDay(\'ALL\')">TODOS</button>';
    for(var i=0;i<days.length;i++){h+='<button class="fb '+(sDay==days[i]?'on':'')+'" onclick="setDay('+days[i]+')">'+days[i]+'</button>';}
@@ -606,7 +626,7 @@ $('tbl').innerHTML='<div class="tw"><table class="dt"><thead><tr><th>Mes</th><th
 
 
 /* ======== MAIN ======== */
-function render(){kill();renderNav();renderFilters();var d=fil();
+function render(){kill();normalizeFilters();renderNav();renderFilters();var d=fil();
 $('hSub').textContent='Hist\u00f3rico de datos: '+D.length+' lotes'+(sY!=='ALL'?' \u00b7 '+sY:'')+(sM!=='ALL'?' \u00b7 '+sM:'')+(sP!=='ALL'?' \u00b7 '+pd(sP):'');
 renderAlerts(d);if(!d.length&&tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){$('kpis').innerHTML='';$('charts').innerHTML='<div class="empty">Sin datos</div>';$('tbl').innerHTML='';$('notaEl').innerHTML='';$('extra').innerHTML='';return;}
 var fn={OVERVIEW:renderOverview,RENTABILIDAD:renderRentabilidad,RENDIMIENTO:renderRendimiento,'CALIDAD Y MERMAS':renderCalidad,SUBPRODUCTOS:renderSubproductos,'REQUESÓN':function(){renderRequeson()},'MEDIO AMBIENTE':function(){renderMedioAmbiente(d)}};fn[tab](d);}
