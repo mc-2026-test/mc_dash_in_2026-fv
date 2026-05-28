@@ -334,22 +334,25 @@ function baseSource(){
  }
  return D.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom,producto:r.producto}});
 }
+function rowYear(r){var f=String(r.fecha||r.ym||'');return f.length>=4?f.slice(0,4):'';}
+function rowDay(r){var f=String(r.fecha||'');var d=parseInt(f.slice(8,10));return isNaN(d)?null:d;}
 function sourceFiltered(ignore){
  ignore=ignore||{};
  return baseSource().filter(function(r){
-  var f=String(r.fecha||r.ym||''), y=f.length>=4?f.slice(0,4):'', dd=parseInt(String(r.fecha||'').slice(8,10));
+  var y=rowYear(r), dd=rowDay(r);
   if(!ignore.year&&sY!=='ALL'&&y!==sY)return false;
   if(!ignore.month&&sM!=='ALL'&&r.mesNom!==sM)return false;
-  if(!ignore.product&&sP!=='ALL'&&r.producto&&r.producto!==sP)return false;
+  if(!ignore.product&&sP!=='ALL'&&r.producto!==sP)return false;
   if(!ignore.day&&sDay!=='ALL'&&dd!==parseInt(sDay))return false;
   return true;
  });
 }
 function filterSource(){return sourceFiltered({});}
-function ms(){return Array.from(new Set(sourceFiltered({month:true,day:true}).map(function(r){return r.mesNom}).filter(Boolean)))}
-function ps(){return Array.from(new Set(sourceFiltered({product:true}).map(function(r){return r.producto}).filter(Boolean)))}
-function ys(){var a=sourceFiltered({year:true,month:true,day:true}).map(function(r){var f=String(r.fecha||r.ym||'');return f.length>=4?f.slice(0,4):''});return Array.from(new Set(a.filter(function(v){var y=parseInt(v);return v&&v.length===4&&(!isNaN(y))&&(tab!=='MEDIO AMBIENTE'||(y>=2025&&y<=2030));}))).sort()}
-function ds(){return Array.from(new Set(sourceFiltered({day:true}).map(function(r){return parseInt(String(r.fecha||'').slice(8,10))}).filter(function(v){return v>0}))).sort(function(a,b){return a-b})}
+function uniqSorted(arr){return Array.from(new Set(arr.filter(function(v){return v!==null&&v!==undefined&&v!=='';}))).sort();}
+function ms(){return uniqSorted(sourceFiltered({month:true}).map(function(r){return r.mesNom;}));}
+function ps(){return uniqSorted(sourceFiltered({product:true}).map(function(r){return r.producto;}));}
+function ys(){return uniqSorted(sourceFiltered({year:true}).map(function(r){return rowYear(r);}).filter(function(v){var y=parseInt(v);return v&&v.length===4&&(!isNaN(y))&&(tab!=='MEDIO AMBIENTE'||(y>=2025&&y<=2030));}));}
+function ds(){return Array.from(new Set(sourceFiltered({day:true}).map(function(r){return rowDay(r);}).filter(function(v){return v>0;}))).sort(function(a,b){return a-b});}
 function normalizeFilters(){
  if(tab==='REQUESÓN'||tab==='MEDIO AMBIENTE'){sP='ALL';}
  var yA=ys(); if(sY!=='ALL'&&yA.indexOf(sY)<0){sY='ALL';sM='ALL';sDay='ALL';}
@@ -631,6 +634,7 @@ $('hSub').textContent='Hist\u00f3rico de datos: '+D.length+' lotes'+(sY!=='ALL'?
 renderAlerts(d);if(!d.length&&tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){$('kpis').innerHTML='';$('charts').innerHTML='<div class="empty">Sin datos</div>';$('tbl').innerHTML='';$('notaEl').innerHTML='';$('extra').innerHTML='';return;}
 var fn={OVERVIEW:renderOverview,RENTABILIDAD:renderRentabilidad,RENDIMIENTO:renderRendimiento,'CALIDAD Y MERMAS':renderCalidad,SUBPRODUCTOS:renderSubproductos,'REQUESÓN':function(){renderRequeson()},'MEDIO AMBIENTE':function(){renderMedioAmbiente(d)}};fn[tab](d);}
 window.setTab=function(t){tab=t;render()};window.setYear=function(y){sY=y;sM='ALL';sDay='ALL';render()};window.setMes=function(m){sM=m;sDay='ALL';render()};window.setProd=function(p){sP=p;sDay='ALL';render()};window.setDay=function(d){sDay=d;render()};
+console.log('SLICERS_ENCADENADOS_V16');
 loadDefaults();render();
 
 async function cargarExcelNetlify() {
