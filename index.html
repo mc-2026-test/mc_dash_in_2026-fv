@@ -63,9 +63,10 @@ SP=[{y:2026,m:"ENE",nataLecheE:70000,sueroE:12000,permE:3000,nataSueroE:0}];}
 /* PARSER - reads all tables from Excel */
 const PF=['mgLeche','mpLeche','recupMG','recupPT','rendSolidos','mermaFabPct','oreo','mermaEnvCorr','mermaTOTpct','recupPct'];
 const CM={'Fecha':'fecha','mes':'mes','Mes_Nom':'mesNom','Lote':'lote','Producto':'producto','Litros_Leche_Total':'litrosLeche','%MG_Leche':'mgLeche','%MP_Leche':'mpLeche','RDTO_Blanco':'rdtoBlanco','RDTO_NETO':'rdtoNeto','REND_TARGET':'rendTarget','Kg_Queso_Blan':'kgBlanco','Kg_SalidaSecadero':'kgSecadero','%RECUP_MG':'recupMG','%RECUP_PT':'recupPT','Rendimiento_Solidos_%':'rendSolidos','Litros_Nata':'litrosNata','Valor_Nata_\u20ac':'valorNata','L_suero Total':'sueroTotal','L_suero_con':'sueroCon','L_nata_suero':'nataSuero','Kg_Finos':'kgFinos','Kg_Llenadora':'kgLlenadora','Kg_Desmoldeo':'kgDesmoldeo','Merma_fab':'mermaFab','% Merma_fab2':'mermaFabPct','L_Agua':'lAgua','% oreo':'oreo','%Merma_env_corr':'mermaEnvCorr','B_altas':'bAltas','B_bajas':'bBajas','B_rotas':'bRotas','B_feas':'bFeas','B_lab':'bLab','B_totales':'bTotales','% merma TOT':'mermaTOTpct','Merma_TOT':'mermaTOT','Coste_Leche_\u20ac':'costeLeche','\u20ac/kg_MPQueso':'eurKgMP','Recup_kg':'recupKg','Recup_%':'recupPct','IMPACTO':'impacto'};
+function dateLocal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function xdate(v){
  if(!v)return'';
- if(v instanceof Date)return v.toISOString().slice(0,10);
+ if(v instanceof Date)return dateLocal(v);
  // Only Excel serial dates are treated as dates. Plain years like 2025 must NOT become 1905 dates.
  if(typeof v==='number'&&v>25000){var d=XLSX.SSF.parse_date_code(v);if(d)return d.y+'-'+String(d.m).padStart(2,'0')+'-'+String(d.d).padStart(2,'0');}
  var str=String(v).trim();
@@ -284,14 +285,14 @@ parseRequeson(wb);
 parseDQO(wb);
 parseConsumoWorkbook(wb,true);
 var dfS=wb.SheetNames.find(function(s){return s.toLowerCase().indexOf('dim_fecha')>=0});
-if(dfS){var raw=XLSX.utils.sheet_to_json(wb.Sheets[dfS]);DW={};SM={};raw.forEach(function(r){if(r.Fecha&&r.AñoSemana){var d=r.Fecha;if(typeof d==='number'){var x=XLSX.SSF.parse_date_code(d);d=x.y+'-'+String(x.m).padStart(2,'0')+'-'+String(x.d).padStart(2,'0');}else if(d instanceof Date)d=d.toISOString().slice(0,10);DW[d]=r.AñoSemana;}if(r.AñoSemana&&r.AñoMes){SM[r.AñoSemana]=String(r.AñoMes);}});}
+if(dfS){var raw=XLSX.utils.sheet_to_json(wb.Sheets[dfS]);DW={};SM={};raw.forEach(function(r){if(r.Fecha&&r.AñoSemana){var d=r.Fecha;if(typeof d==='number'){var x=XLSX.SSF.parse_date_code(d);d=x.y+'-'+String(x.m).padStart(2,'0')+'-'+String(x.d).padStart(2,'0');}else if(d instanceof Date)d=dateLocal(d);DW[d]=r.AñoSemana;}if(r.AñoSemana&&r.AñoMes){SM[r.AñoSemana]=String(r.AñoMes);}});}
 var brS=wb.SheetNames.find(function(s){return s.toLowerCase().indexOf('base_rend')>=0});
 if(!brS){toast('No Base_Rendimientos','err');return false;}
 var brR=XLSX.utils.sheet_to_json(wb.Sheets[brS],{header:1,defval:null});var hI=-1;
 for(var i=0;i<Math.min(10,brR.length);i++){if(brR[i]&&brR[i].some(function(c){return c==='Fecha'})){hI=i;break;}}
 if(hI<0){toast('No cabecera','err');return false;}
 var hd=brR[hI];D=[];
-for(var i=hI+1;i<brR.length;i++){var row=brR[i];if(!row||!row[0])continue;var o={};hd.forEach(function(h,ci){var k=CM[h];if(k&&row[ci]!=null){var v=row[ci];if(k==='fecha'){if(typeof v==='number'){var dd=XLSX.SSF.parse_date_code(v);v=dd.y+'-'+String(dd.m).padStart(2,'0')+'-'+String(dd.d).padStart(2,'0');}else if(v instanceof Date)v=v.toISOString().slice(0,10);}if(PF.indexOf(k)>=0&&typeof v==='number'&&Math.abs(v)<1.5)v=+(v*100).toFixed(2);o[k]=v;}});
+for(var i=hI+1;i<brR.length;i++){var row=brR[i];if(!row||!row[0])continue;var o={};hd.forEach(function(h,ci){var k=CM[h];if(k&&row[ci]!=null){var v=row[ci];if(k==='fecha'){if(typeof v==='number'){var dd=XLSX.SSF.parse_date_code(v);v=dd.y+'-'+String(dd.m).padStart(2,'0')+'-'+String(dd.d).padStart(2,'0');}else if(v instanceof Date)v=dateLocal(v);}if(PF.indexOf(k)>=0&&typeof v==='number'&&Math.abs(v)<1.5)v=+(v*100).toFixed(2);o[k]=v;}});
 if(o.fecha&&o.producto&&o.litrosLeche&&o.producto!=="PROMEDIO"){o.producto=o.producto.toString().trim().replace(/\s+/g,'_');if(!o.mesNom){var mn=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];var mm=parseInt(o.fecha.split('-')[1]);o.mesNom=mn[mm]||'';o.mes=mm;}if(o.fecha){o.anyo=String(o.fecha).slice(0,4);o.ym=String(o.fecha).slice(0,7);}D.push(o);}}
 if(!D.length){toast('Sin datos','err');return false;}
 var tS=wb.SheetNames.find(function(s){return s.toLowerCase()==='targets'});
@@ -609,7 +610,7 @@ function render(){kill();renderNav();renderFilters();var d=fil();
 $('hSub').textContent='Hist\u00f3rico de datos: '+D.length+' lotes'+(sY!=='ALL'?' \u00b7 '+sY:'')+(sM!=='ALL'?' \u00b7 '+sM:'')+(sP!=='ALL'?' \u00b7 '+pd(sP):'');
 renderAlerts(d);if(!d.length&&tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){$('kpis').innerHTML='';$('charts').innerHTML='<div class="empty">Sin datos</div>';$('tbl').innerHTML='';$('notaEl').innerHTML='';$('extra').innerHTML='';return;}
 var fn={OVERVIEW:renderOverview,RENTABILIDAD:renderRentabilidad,RENDIMIENTO:renderRendimiento,'CALIDAD Y MERMAS':renderCalidad,SUBPRODUCTOS:renderSubproductos,'REQUESÓN':function(){renderRequeson()},'MEDIO AMBIENTE':function(){renderMedioAmbiente(d)}};fn[tab](d);}
-window.setTab=function(t){tab=t;render()};window.setYear=function(y){sY=y;sM='ALL';sDay='ALL';render()};window.setMes=function(m){sM=m;sDay='ALL';render()};window.setProd=function(p){sP=p;render()};window.setDay=function(d){sDay=d;render()};
+window.setTab=function(t){tab=t;render()};window.setYear=function(y){sY=y;sM='ALL';sDay='ALL';render()};window.setMes=function(m){sM=m;sDay='ALL';render()};window.setProd=function(p){sP=p;sDay='ALL';render()};window.setDay=function(d){sDay=d;render()};
 loadDefaults();render();
 
 async function cargarExcelNetlify() {
@@ -688,7 +689,7 @@ parseConsumoWorkbook = function(wb, replace){
     }
   }
   parseMonthlySheet('2025'); parseMonthlySheet('2026'); parseDailySheet('Diario 2025'); parseDailySheet('Diario 2026');
-  console.log('PARSER_CONSUMO_628_V13', {mensual:ENV.length, diario:ENVD.length, ejemploMayo2025:ENV.find(function(x){return x.ym==='2025-05'}), hojas:wb.SheetNames});
+  console.log('PARSER_CONSUMO_628_V14', {mensual:ENV.length, diario:ENVD.length, ejemploMayo2025:ENV.find(function(x){return x.ym==='2025-05'}), hojas:wb.SheetNames});
   return found;
 };
 
