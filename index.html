@@ -322,7 +322,7 @@ function avg(a,k){var v=a.filter(function(r){return r[k]!=null&&!isNaN(r[k])});r
 function wavg(a,kV,kW){var tw=sum(a,kW);return tw?a.reduce(function(s,r){return s+(r[kV]||0)*(r[kW]||0)},0)/tw:0}
 function f(n,d){d=d||0;return n.toLocaleString('es-ES',{minimumFractionDigits:d,maximumFractionDigits:d})}
 function fk(n){return Math.abs(n)>=1e6?f(n/1e6,2)+'M':Math.abs(n)>=1000?f(n/1000,0)+'k':f(n,0)}
-function fil(){return D.filter(function(r){if(r.producto==="PROMEDIO")return false;var yOk=sY==="ALL"||String(r.fecha||"").slice(0,4)===sY;var mOk=sM==="ALL"||r.mesNom===sM;var pOk=sP==="ALL"||r.producto===sP;var dOk=sDay==="ALL"||parseInt(String(r.fecha||"").slice(8,10))===parseInt(sDay);return yOk&&mOk&&pOk&&dOk})}
+function fil(){return D.filter(function(r){if(r.producto==="PROMEDIO")return false;var yOk=sY==="ALL"||String(r.fecha||"").slice(0,4)===sY;var mOk=sM==="ALL"||mesNum(r.mesNom)===mesNum(sM);var pOk=sP==="ALL"||r.producto===sP;var dOk=sDay==="ALL"||parseInt(String(r.fecha||"").slice(8,10))===parseInt(sDay);return yOk&&mOk&&pOk&&dOk})}
 function baseSource(){
  if(tab==='REQUESÓN')return RQ.map(function(r){return{fecha:r.fecha,ym:r.ym,mesNom:r.mesNom,producto:''}});
  if(tab==='MEDIO AMBIENTE'){
@@ -341,23 +341,30 @@ function sourceFiltered(ignore){
  return baseSource().filter(function(r){
   var y=rowYear(r), dd=rowDay(r);
   if(!ignore.year&&sY!=='ALL'&&y!==sY)return false;
-  if(!ignore.month&&sM!=='ALL'&&r.mesNom!==sM)return false;
+  if(!ignore.month&&sM!=='ALL'&&mesNum(r.mesNom)!==mesNum(sM))return false;
   if(!ignore.product&&sP!=='ALL'&&r.producto!==sP)return false;
   if(!ignore.day&&sDay!=='ALL'&&dd!==parseInt(sDay))return false;
   return true;
  });
 }
 function filterSource(){return sourceFiltered({});}
-function uniqSorted(arr){return Array.from(new Set(arr.filter(function(v){return v!==null&&v!==undefined&&v!=='';}))).sort();}
-function ms(){return uniqSorted(sourceFiltered({month:true}).map(function(r){return r.mesNom;}));}
-function ps(){return uniqSorted(sourceFiltered({product:true}).map(function(r){return r.producto;}));}
-function ys(){return uniqSorted(sourceFiltered({year:true}).map(function(r){return rowYear(r);}).filter(function(v){var y=parseInt(v);return v&&v.length===4&&(!isNaN(y))&&(tab!=='MEDIO AMBIENTE'||(y>=2025&&y<=2030));}));}
+const MES_ORDER=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','SEPT','OCT','NOV','DIC'];
+function monthRank(m){var n=parseInt(mesNum(m));return isNaN(n)?99:n;}
+function uniqClean(arr){return Array.from(new Set(arr.filter(function(v){return v!==null&&v!==undefined&&String(v)!=='';})));}
+function sortYears(arr){return uniqClean(arr).sort(function(a,b){return parseInt(a)-parseInt(b);});}
+function sortMonths(arr){return uniqClean(arr).sort(function(a,b){return monthRank(a)-monthRank(b);});}
+function sortProducts(arr){return uniqClean(arr).sort(function(a,b){return pd(a).localeCompare(pd(b),'es');});}
+function ys(){return sortYears(sourceFiltered({year:true}).map(function(r){return rowYear(r);}).filter(function(v){var y=parseInt(v);return v&&String(v).length===4&&!isNaN(y)&&(tab!=='MEDIO AMBIENTE'||(y>=2025&&y<=2030));}));}
+function ms(){return sortMonths(sourceFiltered({month:true}).map(function(r){return r.mesNom;}));}
+function ps(){return sortProducts(sourceFiltered({product:true}).map(function(r){return r.producto;}));}
 function ds(){return Array.from(new Set(sourceFiltered({day:true}).map(function(r){return rowDay(r);}).filter(function(v){return v>0;}))).sort(function(a,b){return a-b});}
 function normalizeFilters(){
  if(tab==='REQUESÓN'||tab==='MEDIO AMBIENTE'){sP='ALL';}
  var yA=ys(); if(sY!=='ALL'&&yA.indexOf(sY)<0){sY='ALL';sM='ALL';sDay='ALL';}
- var mA=ms(); if(sM!=='ALL'&&mA.indexOf(sM)<0){sM='ALL';sDay='ALL';}
- if(tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){var pA=ps(); if(sP!=='ALL'&&pA.indexOf(sP)<0){sP='ALL';sDay='ALL';}}
+ var mA=ms(); if(sM!=='ALL'&&!mA.some(function(m){return mesNum(m)===mesNum(sM);})){sM='ALL';sDay='ALL';}
+ if(tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){
+  var pA=ps(); if(sP!=='ALL'&&pA.indexOf(sP)<0){sP='ALL';}
+ }
  var dA=ds(); if(sDay!=='ALL'&&dA.indexOf(parseInt(sDay))<0){sDay='ALL';}
 }
 function kill(){CA.forEach(function(c){c.destroy()});CA=[];}
@@ -404,24 +411,22 @@ function prodKgByYM(){var m={};D.forEach(function(r){var ym=r.ym||String(r.fecha
 function kpi(l,v,u,bc,cls,sub){cls=cls||'';sub=sub||'';return'<div class="kpi '+cls+'" style="border-left-color:'+bc+'"><div class="kpi-l">'+l+'</div><div class="kpi-v">'+v+'<span class="u">'+u+'</span></div>'+(sub?'<div class="kpi-s">'+sub+'</div>':'')+'</div>';}
 function renderNav(){$('nav').innerHTML=TB.map(function(t){return'<button class="'+(t===tab?'on':'')+'" onclick="setTab(\''+t+'\')">'+t+'</button>'}).join("");}
 function renderFilters(){
- var y=ys(),m=ms(),p=ps(),src=filterSource();
+ normalizeFilters();
+ var y=ys(),m=ms(),p=ps(),days=ds();
  var h='<div class="fg"><span class="fl">A\u00f1o</span><button class="fb '+(sY==='ALL'?'on':'')+'" onclick="setYear(\'ALL\')">TODOS</button>';
  for(var i=0;i<y.length;i++){h+='<button class="fb '+(sY===y[i]?'on':'')+'" onclick="setYear(\''+y[i]+'\')">'+y[i]+'</button>';}
  h+='</div><div class="fg"><span class="fl">Mes</span><button class="fb '+(sM==='ALL'?'on':'')+'" onclick="setMes(\'ALL\')">TODOS</button>';
- for(var i=0;i<m.length;i++){h+='<button class="fb '+(sM===m[i]?'on':'')+'" onclick="setMes(\''+m[i]+'\')">'+m[i]+'</button>';}
+ for(var i=0;i<m.length;i++){var ma=mesNum(sM)===mesNum(m[i]);h+='<button class="fb '+(ma?'on':'')+'" onclick="setMes(\''+m[i]+'\')">'+m[i]+'</button>';}
  h+='</div>';
- if(sM!=='ALL'){
-  var days=ds();
-  if(days.length>0){
-   h+='<div class="fg"><span class="fl">D\u00eda</span><button class="fb '+(sDay==='ALL'?'on':'')+'" onclick="setDay(\'ALL\')">TODOS</button>';
-   for(var i=0;i<days.length;i++){h+='<button class="fb '+(sDay==days[i]?'on':'')+'" onclick="setDay('+days[i]+')">'+days[i]+'</button>';}
-   h+='</div>';
-  }
- }
  if(tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){
   h+='<div class="fg"><span class="fl">Producto</span><button class="fb '+(sP==='ALL'?'on':'')+'" onclick="setProd(\'ALL\')">TODOS</button>';
   for(var i=0;i<p.length;i++){var a=sP===p[i];h+='<button class="fb '+(a?'po':'')+'" style="'+(a?'background:'+pc(p[i])+';border-color:'+pc(p[i]):'')+'" onclick="setProd(\''+p[i]+'\')">'+pd(p[i])+'</button>';}
   h+='</div>';
+  if((sY!=='ALL'||sM!=='ALL'||sP!=='ALL')&&days.length>0){
+   h+='<div class="fg"><span class="fl">D\u00eda</span><button class="fb '+(sDay==='ALL'?'on':'')+'" onclick="setDay(\'ALL\')">TODOS</button>';
+   for(var j=0;j<days.length;j++){h+='<button class="fb '+(parseInt(sDay)===days[j]?'on':'')+'" onclick="setDay('+days[j]+')">'+days[j]+'</button>';}
+   h+='</div>';
+  }
  }else{sP='ALL';}
  $('flts').innerHTML=h;
 }
@@ -633,8 +638,8 @@ function render(){kill();normalizeFilters();renderNav();renderFilters();var d=fi
 $('hSub').textContent='Hist\u00f3rico de datos: '+D.length+' lotes'+(sY!=='ALL'?' \u00b7 '+sY:'')+(sM!=='ALL'?' \u00b7 '+sM:'')+(sP!=='ALL'?' \u00b7 '+pd(sP):'');
 renderAlerts(d);if(!d.length&&tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){$('kpis').innerHTML='';$('charts').innerHTML='<div class="empty">Sin datos</div>';$('tbl').innerHTML='';$('notaEl').innerHTML='';$('extra').innerHTML='';return;}
 var fn={OVERVIEW:renderOverview,RENTABILIDAD:renderRentabilidad,RENDIMIENTO:renderRendimiento,'CALIDAD Y MERMAS':renderCalidad,SUBPRODUCTOS:renderSubproductos,'REQUESÓN':function(){renderRequeson()},'MEDIO AMBIENTE':function(){renderMedioAmbiente(d)}};fn[tab](d);}
-window.setTab=function(t){tab=t;render()};window.setYear=function(y){sY=y;sM='ALL';sDay='ALL';render()};window.setMes=function(m){sM=m;sDay='ALL';render()};window.setProd=function(p){sP=p;sDay='ALL';render()};window.setDay=function(d){sDay=d;render()};
-console.log('SLICERS_ENCADENADOS_V16');
+window.setTab=function(t){tab=t;sDay='ALL';render()};window.setYear=function(y){sY=y;sM='ALL';sDay='ALL';render()};window.setMes=function(m){sM=m;sDay='ALL';render()};window.setProd=function(p){sP=p;render()};window.setDay=function(d){sDay=d;render()};
+console.log('SLICERS_ENCADENADOS_V17_FIXED_ORDER');
 loadDefaults();render();
 
 async function cargarExcelNetlify() {
