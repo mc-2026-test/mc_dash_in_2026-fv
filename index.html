@@ -98,7 +98,7 @@ function parseRequeson(wb){
  if(hI<0)return;
  var hd=rr[hI];var ix=function(n){return hd.indexOf(n)};
  var cF=ix('Fecha'),cMes=ix('Mes'),cMN=ix('Mes_Nom'),cD=ix('Dia'),cL=ix('Lote'),cR=ix('Receta'),cMG=ix('%MG'),cMP=ix('%MP'),cH=ix('%HUMEDAD'),cKG=ix('KG_RQ'),cNP=ix('Nata_Propia'),cNE=ix('Nata_Ext'),cSC=ix('Litr_Suero_conc'),cCF=ix('Cant_Floc'),cLF=ix('Litr/Flc'),cKM=ix('Kg_mezcla'),cRB=ix('Rend_Bruto');
- for(var i=hI+1;i<rr.length;i++){var r=rr[i]||[];var dt=xdate(r[cF]);var kg=nnum(r[cKG]);if(!dt||!kg)continue;var o={fecha:dt,ym:ymFromDateStr(dt),mes:r[cMes]||parseInt(dt.slice(5,7)),mesNom:r[cMN]||mesNomFromDateStr(dt),dia:r[cD]||'',lote:r[cL]||'',receta:r[cR]||'',mg:nnum(r[cMG]),mp:nnum(r[cMP]),hum:nnum(r[cH]),kg:kg,nataPropia:nnum(r[cNP]),nataExt:nnum(r[cNE]),sueroConc:nnum(r[cSC]),floc:nnum(r[cCF]),litrosFloc:nnum(r[cLF]),kgMezcla:nnum(r[cKM]),rendBruto:nnum(r[cRB])};RQ.push(o);}
+ for(var i=hI+1;i<rr.length;i++){var r=rr[i]||[];var dt=xdate(r[cF]);var kg=nnum(r[cKG]);if(!dt||!kg)continue;var o={fecha:dt,ym:ymFromDateStr(dt),mes:r[cMes]||parseInt(dt.slice(5,7)),mesNom:monthLabelFixed(dt)||monthLabelFixed(r[cMN])||mesNomFromDateStr(dt),dia:r[cD]||'',lote:r[cL]||'',receta:r[cR]||'',mg:nnum(r[cMG]),mp:nnum(r[cMP]),hum:nnum(r[cH]),kg:kg,nataPropia:nnum(r[cNP]),nataExt:nnum(r[cNE]),sueroConc:nnum(r[cSC]),floc:nnum(r[cCF]),litrosFloc:nnum(r[cLF]),kgMezcla:nnum(r[cKM]),rendBruto:nnum(r[cRB])};RQ.push(o);}
 }
 function parseDQO(wb){
  DQO=[];
@@ -296,7 +296,7 @@ for(var i=0;i<Math.min(10,brR.length);i++){if(brR[i]&&brR[i].some(function(c){re
 if(hI<0){toast('No cabecera','err');return false;}
 var hd=brR[hI];D=[];
 for(var i=hI+1;i<brR.length;i++){var row=brR[i];if(!row||!row[0])continue;var o={};hd.forEach(function(h,ci){var k=CM[h];if(k&&row[ci]!=null){var v=row[ci];if(k==='fecha'){if(typeof v==='number'){var dd=XLSX.SSF.parse_date_code(v);v=dd.y+'-'+String(dd.m).padStart(2,'0')+'-'+String(dd.d).padStart(2,'0');}else if(v instanceof Date)v=dateLocal(v);}if(PF.indexOf(k)>=0&&typeof v==='number'&&Math.abs(v)<1.5)v=+(v*100).toFixed(2);o[k]=v;}});
-if(o.fecha&&o.producto&&o.litrosLeche&&o.producto!=="PROMEDIO"){o.producto=o.producto.toString().trim().replace(/\s+/g,'_');if(!o.mesNom){var mn=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];var mm=parseInt(o.fecha.split('-')[1]);o.mesNom=mn[mm]||'';o.mes=mm;}if(o.fecha){o.anyo=String(o.fecha).slice(0,4);o.ym=String(o.fecha).slice(0,7);}D.push(o);}}
+if(o.fecha&&o.producto&&o.litrosLeche&&o.producto!=="PROMEDIO"){o.producto=o.producto.toString().trim().replace(/\s+/g,'_');if(!o.mesNom){var mn=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEPT','OCT','NOV','DIC'];var mm=parseInt(o.fecha.split('-')[1]);o.mesNom=mn[mm]||'';o.mes=mm;}if(o.fecha){o.anyo=String(o.fecha).slice(0,4);o.ym=String(o.fecha).slice(0,7);o.mesNom=monthLabelFixed(o.ym)||monthLabelFixed(o.mesNom)||o.mesNom;}D.push(o);}}
 if(!D.length){toast('Sin datos','err');return false;}
 var tS=wb.SheetNames.find(function(s){return s.toLowerCase()==='targets'});
 if(tS){var tR=XLSX.utils.sheet_to_json(wb.Sheets[tS],{header:1,defval:null});TG={};CI={};var th=-1;for(var ti=0;ti<tR.length;ti++){if(tR[ti]&&tR[ti][0]==='Producto'){th=ti;break;}}if(th>=0){var hh=tR[th];var ix=function(n){return hh.indexOf(n)};var iProd=ix('Producto'),iYear=ix('Año'),iCI=ix('Coste Ing_emb'),iTG=ix('Rend_Ntarget');for(var ti=th+1;ti<tR.length;ti++){var r=tR[ti];if(!r||!r[iProd]||r[iProd]==='Tabla_Target')continue;var p=r[iProd].toString().trim().replace(/\s+/g,'_');var y=r[iYear]?String(r[iYear]):'';if(iTG>=0&&typeof r[iTG]==='number'){TG[p]=+r[iTG].toFixed(3);if(y)TG[p+'__'+y]=+r[iTG].toFixed(3);}if(iCI>=0&&typeof r[iCI]==='number'){CI[p]=+r[iCI];if(y)CI[p+'__'+y]=+r[iCI];}}}}
@@ -307,7 +307,7 @@ if(r[0]==='Fecha'&&r[1]==='Producto'){sS=i;continue;}
 if(sS>0&&i>sS){
 if(r[44]&&r[45]&&normTxt(r[45]).indexOf('reques')>=0){var sem=String(r[44]);var ym=weekYM(sem);if(nnum(r[46])||nnum(r[48])){RQV.push({s:sem,ym:ym,p:'REQUESON',kgTio:nnum(r[46]),pvTio:nnum(r[47]),kgReg:nnum(r[48]),pvReg:nnum(r[49])});}}
 if(r[0]&&typeof r[0]==='string'&&/^\d{4}-S\d{2}$/.test(r[0])&&r[1]&&r[3]&&typeof r[3]==='number')SL.push({s:r[0],ym:weekYM(r[0]),p:r[1].toString().trim().replace(/\s+/g,'_'),kg:r[2]||0,pv:r[3]});
-if(r[6]&&r[9]&&typeof r[9]==='number'){var mn2=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];AC.push({y:+r[6],ym:String(r[7]||''),m:r[8],g:r[9],eb:r[10]||0,ebp:r[11]||0});}
+if(r[6]&&r[9]&&typeof r[9]==='number'){var mn2=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEPT','OCT','NOV','DIC'];AC.push({y:+r[6],ym:String(r[7]||''),m:r[8],g:r[9],eb:r[10]||0,ebp:r[11]||0});}
 if(r[17]&&r[18]&&typeof r[18]==='number'&&r[18]>0)NC.push({sem:r[17],ym:weekYM(r[17]),kg:r[18],prod:r[19]?r[19].toString().trim().replace(/\s+/g,'_'):'',estado:r[20]||''});
 if(r[24]&&r[27]&&typeof r[27]==='number')OT.push({y:+r[24],ym:String(r[25]||''),m:r[26],v:r[27]});
 if(r[31]&&(r[34]||r[35]||r[36]||r[37]))SP.push({y:+r[31],ym:String(r[32]||''),m:r[33],nataSueroE:r[34]||0,nataLecheE:r[35]||0,sueroE:r[36]||0,permE:r[37]||0});}}}
@@ -410,7 +410,7 @@ function renderFilters(){
   for(var d=0;d<days.length;d++){h+='<button class="fb '+(parseInt(sDay)===days[d]?'on':'')+'" onclick="setDay('+days[d]+')">'+days[d]+'</button>';}
   h+='</div>';
  }
- h+='<div class="nota" style="margin:0 0 0 6px;padding:3px 7px;border-left-color:var(--green);font-size:7px">V21</div>';
+ h+='<div class="nota" style="margin:0 0 0 6px;padding:3px 7px;border-left-color:var(--green);font-size:7px">V24</div>';
  $('flts').innerHTML=h;
 }
 function kill(){CA.forEach(function(c){c.destroy()});CA=[];}
@@ -437,7 +437,7 @@ function mesNum(m){
 
   return map[m] || '';
 }
-function mesFromYM(ym){var a=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];var n=parseInt(String(ym).slice(5,7));return a[n-1]||''}
+function mesFromYM(ym){var a=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEPT','OCT','NOV','DIC'];var n=parseInt(String(ym).slice(5,7));return a[n-1]||''}
 function weekYM(s){if(!s)return'';if(SM[s])return SM[s];var m=/^(\d{4})-S(\d{2})$/.exec(String(s));if(!m)return'';var y=+m[1],w=+m[2];var jan4=new Date(Date.UTC(y,0,4));var dow=jan4.getUTCDay()||7;var mon=new Date(jan4);mon.setUTCDate(jan4.getUTCDate()-dow+1+(w-1)*7);var thu=new Date(mon);thu.setUTCDate(mon.getUTCDate()+3);return thu.getUTCFullYear()+'-'+String(thu.getUTCMonth()+1).padStart(2,'0')}
 function ymOK(ym){if(!ym)return false;var yOk=sY==='ALL'||String(ym).slice(0,4)===sY;var mOk=sM==='ALL'||String(ym).slice(5,7)===mesNum(sM);return yOk&&mOk}
 function filteredSales(prod){return SL.filter(function(s){var yOk=sY==='ALL'||String(s.s).slice(0,4)===sY;var mOk=sM==='ALL'||ymOK(s.ym||weekYM(s.s));var pOk=!prod||prod==='ALL'||s.p===prod;return yOk&&mOk&&pOk&&s.kg>0&&s.pv>0})}
@@ -447,11 +447,11 @@ function getCI(p,y){return (y&&CI[p+'__'+y]!=null)?CI[p+'__'+y]:(CI[p]||0)}
 function gAcc(){return AC.filter(function(a){return ymOK(a.ym||(String(a.y)+'-'+mesNum(a.m)))})}
 function gOT(){return OT.filter(function(o){return ymOK(o.ym||(String(o.y)+'-'+mesNum(o.m)))})}
 function gSP(){return SP.filter(function(s){return ymOK(s.ym||(String(s.y)+'-'+mesNum(s.m)))})}
-function filteredRQ(){return RQ.filter(function(r){var yOk=sY==='ALL'||String(r.fecha||'').slice(0,4)===sY;var mOk=sM==='ALL'||r.mesNom===sM;var dOk=sDay==='ALL'||parseInt(String(r.fecha||'').slice(8,10))===parseInt(sDay);return yOk&&mOk&&dOk;})}
+function filteredRQ(){return RQ.filter(function(r){var yOk=sY==='ALL'||String(r.fecha||'').slice(0,4)===sY;var mOk=sM==='ALL'||monthNumFromAny(r.fecha||r.mesNom)===monthNumFromAny(sM);var dOk=sDay==='ALL'||parseInt(String(r.fecha||'').slice(8,10))===parseInt(sDay);return yOk&&mOk&&dOk;})}
 function filteredRQSales(){return RQV.filter(function(r){return ymOK(r.ym);})}
-function filteredDQO(){return DQO.filter(function(r){var y=parseInt(String(r.fecha||'').slice(0,4));var yOk=(y>=2025&&y<=2030)&&(sY==='ALL'||String(r.fecha||'').slice(0,4)===sY);var mOk=sM==='ALL'||r.mesNom===sM;var dOk=sDay==='ALL'||parseInt(String(r.fecha||'').slice(8,10))===parseInt(sDay);return yOk&&mOk&&dOk;})}
+function filteredDQO(){return DQO.filter(function(r){var y=parseInt(String(r.fecha||'').slice(0,4));var yOk=(y>=2025&&y<=2030)&&(sY==='ALL'||String(r.fecha||'').slice(0,4)===sY);var mOk=sM==='ALL'||monthNumFromAny(r.fecha||r.mesNom)===monthNumFromAny(sM);var dOk=sDay==='ALL'||parseInt(String(r.fecha||'').slice(8,10))===parseInt(sDay);return yOk&&mOk&&dOk;})}
 function filteredENV(){return ENV.filter(function(r){var y=parseInt(String(r.ym||'').slice(0,4));return y>=2025&&y<=2030&&ymOK(r.ym);})}
-function filteredENVD(){return ENVD.filter(function(r){var y=parseInt(String(r.fecha||'').slice(0,4));var yOk=(y>=2025&&y<=2030)&&(sY==='ALL'||String(r.fecha||'').slice(0,4)===sY);var mOk=sM==='ALL'||r.mesNom===sM;var dOk=sDay==='ALL'||parseInt(String(r.fecha||'').slice(8,10))===parseInt(sDay);return yOk&&mOk&&dOk;})}
+function filteredENVD(){return ENVD.filter(function(r){var y=parseInt(String(r.fecha||'').slice(0,4));var yOk=(y>=2025&&y<=2030)&&(sY==='ALL'||String(r.fecha||'').slice(0,4)===sY);var mOk=sM==='ALL'||monthNumFromAny(r.fecha||r.mesNom)===monthNumFromAny(sM);var dOk=sDay==='ALL'||parseInt(String(r.fecha||'').slice(8,10))===parseInt(sDay);return yOk&&mOk&&dOk;})}
 function filteredENVF(){return ENVF.filter(function(r){var y=parseInt(String(r.ym||'').slice(0,4));return y>=2025&&y<=2030&&ymOK(r.ym);})}
 function prodKgByYM(){var m={};D.forEach(function(r){var ym=r.ym||String(r.fecha||'').slice(0,7);if(!m[ym])m[ym]=0;m[ym]+=r.kgSecadero||r.kgBlanco||0;});return m}
 function kpi(l,v,u,bc,cls,sub){cls=cls||'';sub=sub||'';return'<div class="kpi '+cls+'" style="border-left-color:'+bc+'"><div class="kpi-l">'+l+'</div><div class="kpi-v">'+v+'<span class="u">'+u+'</span></div>'+(sub?'<div class="kpi-s">'+sub+'</div>':'')+'</div>';}
@@ -483,7 +483,7 @@ function renderOverview(d){
 var tL=sum(d,'litrosLeche'),tK=sum(d,'kgSecadero'),rN=wavg(d,'rdtoNeto','litrosLeche'),mT=wavg(d,'mermaTOTpct','kgBlanco'),tC=sum(d,'costeLeche');
 var pL=tL>0?(tC/tL):0;var mOk=mT<=MP;var ot=gOT();var otA=ot.length?ot.reduce(function(s,o){return s+o.v},0)/ot.length:null;
 $('kpis').innerHTML=[kpi('Volumen Leche',fk(tL),'L','var(--blue)','info'),kpi('Kg Producidos',f(tK,0),'kg','var(--green)','ok','Suma Kg Salida Secadero'),kpi('Rdto Neto \u00d8',f(rN,2),'L/kg','var(--amber)','','Ponderado por litros'),kpi('Merma Total \u00d8',f(mT,2),'%',mOk?'var(--green)':'var(--red)',mOk?'ok':'bad','Ppto: '+MP+'%'),kpi('OTIF',otA!=null?f(otA,1):'\u2013','%','var(--cyan)',otA>=98?'ok':'warn','On Time In Full'),kpi('Precio Medio Leche',f(pL*1000,2),'\u20ac/1000L','var(--purple)')].join('');
-var m=ms(),byMes=m.map(function(x){var r=d.filter(function(z){return z.mesNom===x});return r.length?{m:x,kg:sum(r,'kgSecadero')/1000,rN:wavg(r,'rdtoNeto','litrosLeche')}:null}).filter(Boolean);
+var m=ms(),byMes=m.map(function(x){var r=d.filter(function(z){return monthNumFromAny(z.fecha||z.mesNom)===monthNumFromAny(x)});return r.length?{m:x,kg:sum(r,'kgSecadero')/1000,rN:wavg(r,'rdtoNeto','litrosLeche')}:null}).filter(Boolean);
 var byProd=ps().map(function(x){var r=d.filter(function(z){return z.producto===x});return r.length?{p:x,kg:sum(r,'kgSecadero')/1000}:null}).filter(Boolean).sort(function(a,b){return b.kg-a.kg});
 var mrmD=d.map(function(r){return{l:r.fecha.slice(5),fab:r.mermaFabPct,oreo:r.oreo,env:r.mermaEnvCorr}});
 var rdtT=d.map(function(r){return{l:r.fecha.slice(5),v:r.rdtoNeto,t:r.rendTarget,p:r.producto}});
@@ -590,7 +590,7 @@ $('notaEl').innerHTML='';
 $('kpis').innerHTML=[kpi('Ingresos Subproductos',f(totalSubprod,0),'\u20ac','var(--purple)'),kpi('% Recup. Nata/Leche',f(pctRecupNata,2),'%','var(--blue)','info','Litros nata / Litros leche'),kpi('Litros Nata Leche',fk(tNL),'L','var(--amber)'),kpi('Nata de Suero',f(tNS,0),'L','var(--cyan)','',tNS===0?'Sin datos a\u00fan':''),kpi('Suero Concentrado',fk(tSC),'L','var(--green)'),kpi('% Compensaci\u00f3n',f(pctComp,1),'%','var(--purple)','','Ingresos subprod / Coste leche')].join('');
 var m=ms();
 // Chart 1: Ingreso nata leche mensual (from SP table or valorNata)
-var byMes=m.map(function(x){var r=d.filter(function(z){return z.mesNom===x});var spM=spD.filter(function(s){return s.m===x});var nataE=spM.length?spM.reduce(function(s,z){return s+z.nataLecheE},0):sum(r,'valorNata');return{m:x,v:nataE}});
+var byMes=m.map(function(x){var r=d.filter(function(z){return monthNumFromAny(z.fecha||z.mesNom)===monthNumFromAny(x)});var spM=spD.filter(function(s){return monthNumFromAny(s.m)===monthNumFromAny(x)});var nataE=spM.length?spM.reduce(function(s,z){return s+z.nataLecheE},0):sum(r,'valorNata');return{m:x,v:nataE}});
 // Chart 2: % generación nata vs MG leche (scatter)
 var p=ps();var scatterNata=d.map(function(r){return{x:r.mgLeche,y:r.litrosLeche>0?(r.litrosNata/r.litrosLeche*100):0,p:r.producto}});
 // Chart 3: Desglose ingresos subproductos (donut with values)
@@ -601,7 +601,7 @@ if(spSueroE>0)donut.push({n:'Suero conc. '+fk(spSueroE)+'\u20ac',v:spSueroE,c:'#
 if(spPermE>0)donut.push({n:'Permeado '+fk(spPermE)+'\u20ac',v:spPermE,c:'#5b2d8e'});
 if(!donut.length)donut.push({n:'Nata leche '+fk(tNV)+'\u20ac',v:tNV||1,c:'#b87d08'});
 // Chart 4: Evolución ingresos subproductos en el tiempo
-var spTimeline=m.map(function(x){var spM=spD.filter(function(s){return s.m===x});var r=d.filter(function(z){return z.mesNom===x});if(spM.length){var t=spM.reduce(function(s,z){return s+z.nataLecheE+z.sueroE+z.permE+z.nataSueroE},0);return{m:x,v:t}}return{m:x,v:sum(r,'valorNata')}});
+var spTimeline=m.map(function(x){var spM=spD.filter(function(s){return monthNumFromAny(s.m)===monthNumFromAny(x)});var r=d.filter(function(z){return monthNumFromAny(z.fecha||z.mesNom)===monthNumFromAny(x)});if(spM.length){var t=spM.reduce(function(s,z){return s+z.nataLecheE+z.sueroE+z.permE+z.nataSueroE},0);return{m:x,v:t}}return{m:x,v:sum(r,'valorNata')}});
 $('charts').innerHTML='<div class="cc"><div class="ct">Ingreso Nata Leche Mensual <span class="bg">\u20ac</span></div><div class="cw"><canvas id="c1"></canvas></div></div><div class="cc"><div class="ct">% Generaci\u00f3n Nata vs MG Leche</div><div class="cw"><canvas id="c2"></canvas></div></div><div class="cc"><div class="ct">Composición ingresos subproductos <span class="bg">€</span></div><div class="cw"><canvas id="c3"></canvas></div></div><div class="cc"><div class="ct">Evoluci\u00f3n Ingresos Subproductos</div><div class="cw"><canvas id="c4"></canvas></div></div>';
 mc('c1',{type:'bar',data:{labels:byMes.map(function(x){return x.m}),datasets:[{label:'\u20ac Nata Leche',data:byMes.map(function(x){return x.v}),backgroundColor:'rgba(184,125,8,.3)',borderColor:'#b87d08',borderWidth:1.5,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{callback:function(v){return fk(v)}}}}}});
 mc('c2',{type:'scatter',data:{datasets:p.map(function(x){return{label:pd(x),data:scatterNata.filter(function(s){return s.p===x}),backgroundColor:pc(x),pointRadius:8,pointHoverRadius:11}})},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:8}}}},scales:{x:{title:{display:true,text:'% MG Leche',font:{size:9}}},y:{title:{display:true,text:'% Nata generada (L nata / L leche)',font:{size:9}}}}}});
@@ -691,8 +691,8 @@ function render(){kill();normalizeFilters();renderNav();renderFilters();var d=fi
 $('hSub').textContent='Hist\u00f3rico de datos: '+D.length+' lotes'+(sY!=='ALL'?' \u00b7 '+sY:'')+(sM!=='ALL'?' \u00b7 '+sM:'')+(sP!=='ALL'?' \u00b7 '+pd(sP):'');
 renderAlerts(d);if(!d.length&&tab!=='REQUESÓN'&&tab!=='MEDIO AMBIENTE'){$('kpis').innerHTML='';$('charts').innerHTML='<div class="empty">Sin datos</div>';$('tbl').innerHTML='';$('notaEl').innerHTML='';$('extra').innerHTML='';return;}
 var fn={OVERVIEW:renderOverview,RENTABILIDAD:renderRentabilidad,RENDIMIENTO:renderRendimiento,'CALIDAD Y MERMAS':renderCalidad,SUBPRODUCTOS:renderSubproductos,'REQUESÓN':function(){renderRequeson()},'MEDIO AMBIENTE':function(){renderMedioAmbiente(d)}};fn[tab](d);}
-window.setTab=function(t){tab=t;sDay='ALL';render()};window.setYear=function(y){sY=y;sM='ALL';sDay='ALL';render()};window.setMes=function(m){sM=m;sDay='ALL';render()};window.setProd=function(p){sP=p;render()};window.setDay=function(d){sDay=d;render()};
-console.log('DASHBOARD_OLN_V23_DAILY_CONSUMPTION');
+window.setTab=function(t){tab=t;sDay='ALL';render()};window.setYear=function(y){sY=y;sM='ALL';sDay='ALL';render()};window.setMes=function(m){sM=m==='ALL'?'ALL':(monthLabelFixed(m)||m);sDay='ALL';render()};window.setProd=function(p){sP=p;render()};window.setDay=function(d){sDay=d;render()};
+console.log('DASHBOARD_OLN_V24_SEPT_CANONICAL');
 console.log(SLICER_VERSION);
 loadDefaults();render();
 
